@@ -1,31 +1,55 @@
-import { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Animated,
+  ScrollView,
+  Dimensions,
+  StatusBar,
+} from 'react-native';
 import { Link, router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/store/authStore';
 import { register } from '../../src/api/auth';
-import { Colors } from '../../src/constants/colors';
 
-const ROLES = [
-  { value: 'MUSTERI', label: '🛒 Müşteri', desc: 'Sipariş ver, takip et' },
-  { value: 'RESTORAN', label: '🍽️ Restoran', desc: 'Siparişleri yönet' },
-  { value: 'KURYE', label: '🛵 Kurye', desc: 'Teslimat yap' },
-];
+const { width } = Dimensions.get('window');
+const ORANGE = '#FF6B35';
+const BG     = '#080808';
 
 export default function RegisterScreen() {
-  const [ad, setAd] = useState('');
-  const [email, setEmail] = useState('');
-  const [sifre, setSifre] = useState('');
-  const [rol, setRol] = useState('MUSTERI');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [ad, setAd]             = useState('');
+  const [email, setEmail]       = useState('');
+  const [sifre, setSifre]       = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [showPassword, setShow] = useState(false);
+  const [focused, setFocused]   = useState<string | null>(null);
   const { setToken } = useAuthStore();
+
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(36)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 1, duration: 650, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 55, friction: 9, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const handleRegister = async () => {
     if (!ad || !email || !sifre) { setError('Tüm alanları doldurun'); return; }
-    setLoading(true); setError('');
+    if (sifre.length < 6)        { setError('Şifre en az 6 karakter olmalı'); return; }
+    setLoading(true);
+    setError('');
     try {
-      const res = await register({ ad, email, sifre, rol });
+      const res = await register({ ad, email, sifre });
       await setToken(res.data.access_token);
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -35,94 +59,197 @@ export default function RegisterScreen() {
     }
   };
 
+  const fields = [
+    {
+      key: 'ad',
+      label: 'AD SOYAD',
+      value: ad,
+      setter: setAd,
+      keyboard: 'default' as const,
+      capitalize: 'words' as const,
+      secure: false,
+    },
+    {
+      key: 'email',
+      label: 'E-POSTA',
+      value: email,
+      setter: setEmail,
+      keyboard: 'email-address' as const,
+      capitalize: 'none' as const,
+      secure: false,
+    },
+    {
+      key: 'sifre',
+      label: 'ŞİFRE',
+      value: sifre,
+      setter: setSifre,
+      keyboard: 'default' as const,
+      capitalize: 'none' as const,
+      secure: true,
+    },
+  ];
+
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <LinearGradient colors={['#1A0A00', Colors.background]} style={StyleSheet.absoluteFill} />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.logo}>🍔</Text>
-          <Text style={styles.title}>Hesap oluştur</Text>
-        </View>
+    <View style={s.root}>
+      <StatusBar barStyle="light-content" backgroundColor={BG} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: BG }]} />
 
-        <View style={styles.form}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+      {/* Orbs — sol üstten geliyor */}
+      <View style={[s.orb, s.o1a]} /><View style={[s.orb, s.o1b]} /><View style={[s.orb, s.o1c]} />
+      <View style={[s.orb, s.o2a]} /><View style={[s.orb, s.o2b]} />
+      <View style={s.horizLine} />
 
-          <Text style={styles.sectionLabel}>Kim olduğunu seç</Text>
-          <View style={styles.roleRow}>
-            {ROLES.map((r) => (
-              <TouchableOpacity
-                key={r.value}
-                style={[styles.roleCard, rol === r.value && styles.roleCardActive]}
-                onPress={() => setRol(r.value)}
-              >
-                <Text style={styles.roleEmoji}>{r.label.split(' ')[0]}</Text>
-                <Text style={[styles.roleLabel, rol === r.value && { color: Colors.primary }]}>
-                  {r.label.split(' ')[1]}
-                </Text>
-                <Text style={styles.roleDesc}>{r.desc}</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          contentContainerStyle={s.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+
+            {/* ── Başlık ── */}
+            <View style={s.headlineArea}>
+              <TouchableOpacity onPress={() => router.back()} style={s.backRow}>
+                <Ionicons name="arrow-back" size={16} color="rgba(255,255,255,0.4)" />
+                <Text style={s.backText}>  Geri</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-
-          {[
-            { label: 'Ad Soyad', value: ad, setter: setAd, placeholder: 'Ahmet Yılmaz' },
-            { label: 'E-posta', value: email, setter: setEmail, placeholder: 'ornek@mail.com', keyboard: 'email-address' as const },
-            { label: 'Şifre', value: sifre, setter: setSifre, placeholder: '••••••', secure: true },
-          ].map((field) => (
-            <View key={field.label} style={styles.inputGroup}>
-              <Text style={styles.label}>{field.label}</Text>
-              <TextInput
-                style={styles.input}
-                value={field.value}
-                onChangeText={field.setter}
-                placeholder={field.placeholder}
-                placeholderTextColor={Colors.textDim}
-                keyboardType={field.keyboard || 'default'}
-                autoCapitalize="none"
-                secureTextEntry={field.secure}
-              />
+              <Text style={s.headline}>Hesap{'\n'}oluştur</Text>
+              <Text style={s.sub}>Ücretsiz kayıt ol, ilk siparişini ver</Text>
             </View>
-          ))}
 
-          <TouchableOpacity style={styles.button} onPress={handleRegister} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Kayıt Ol</Text>}
-          </TouchableOpacity>
+            {/* ── Form kartı ── */}
+            <View style={s.card}>
+              {error ? (
+                <View style={s.errorBox}>
+                  <Text style={s.errorText}>⚠️  {error}</Text>
+                </View>
+              ) : null}
 
-          <Link href="/auth/login" style={styles.link}>
-            <Text style={styles.linkText}>Hesabın var mı? <Text style={{ color: Colors.primary }}>Giriş yap</Text></Text>
-          </Link>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              {fields.map((f) => (
+                <View key={f.key} style={s.fieldGroup}>
+                  <Text style={s.fieldLabel}>{f.label}</Text>
+                  <View style={[s.inputWrap, focused === f.key && s.inputFocused]}>
+                    {focused === f.key && <View style={s.accent} />}
+                    <TextInput
+                      style={[s.input, { flex: 1 }]}
+                      value={f.value}
+                      onChangeText={(t) => { f.setter(t); setError(''); }}
+                      keyboardType={f.keyboard}
+                      autoCapitalize={f.capitalize}
+                      autoCorrect={false}
+                      secureTextEntry={f.secure && !showPassword}
+                      onFocus={() => setFocused(f.key)}
+                      onBlur={() => setFocused(null)}
+                    />
+                    {f.secure && (
+                      <TouchableOpacity
+                        onPress={() => setShow(!showPassword)}
+                        style={s.eyeBtn}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Ionicons
+                          name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                          size={20}
+                          color="rgba(255,255,255,0.38)"
+                        />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </View>
+              ))}
+
+              {/* Kayıt ol butonu */}
+              <TouchableOpacity onPress={handleRegister} disabled={loading} activeOpacity={0.82}>
+                <LinearGradient
+                  colors={loading ? ['#3A3A3A', '#2A2A2A'] : [ORANGE, '#E55A25', '#CC4A15']}
+                  style={s.submitBtn}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                >
+                  {loading
+                    ? <ActivityIndicator color="#fff" size="small" />
+                    : <><Text style={s.submitBtnText}>Kayıt Ol</Text><Ionicons name="arrow-forward" size={18} color="rgba(255,255,255,0.7)" /></>
+                  }
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {/* ── Zaten hesabın var ── */}
+            <View style={s.loginRow}>
+              <Text style={s.loginText}>Zaten hesabın var mı?</Text>
+              <Link href="/auth/login">
+                <Text style={s.loginLink}>  Giriş Yap →</Text>
+              </Link>
+            </View>
+
+            <Text style={s.footer}>
+              Devam ederek Kullanım Koşullarını{'\n'}kabul etmiş olursun
+            </Text>
+          </Animated.View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  scroll: { flexGrow: 1, paddingBottom: 40 },
-  header: { alignItems: 'center', paddingTop: 60, paddingBottom: 24 },
-  logo: { fontSize: 48, marginBottom: 12 },
-  title: { fontSize: 28, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  form: { padding: 24, gap: 14 },
-  sectionLabel: { fontSize: 13, color: Colors.textMuted, fontWeight: '600', letterSpacing: 0.5 },
-  roleRow: { flexDirection: 'row', gap: 10 },
-  roleCard: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 12,
-    alignItems: 'center', borderWidth: 1.5, borderColor: Colors.border, gap: 4,
+const s = StyleSheet.create({
+  root:   { flex: 1, backgroundColor: BG },
+  scroll: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 56, paddingBottom: 40 },
+
+  /* ── Orbs ── */
+  orb: { position: 'absolute', borderRadius: 9999 },
+  o1a: { width: 380, height: 380, backgroundColor: 'rgba(255,107,53,0.07)', top: -100, left: -120 },
+  o1b: { width: 220, height: 220, backgroundColor: 'rgba(255,107,53,0.11)', top:  -40, left:  -50 },
+  o1c: { width: 120, height: 120, backgroundColor: 'rgba(255,107,53,0.15)', top:    0, left:  -10 },
+  o2a: { width: 340, height: 340, backgroundColor: 'rgba(255,179,71,0.06)', bottom:  -60, right: -130 },
+  o2b: { width: 180, height: 180, backgroundColor: 'rgba(255,179,71,0.09)', bottom:   20, right:  -50 },
+  horizLine: { position: 'absolute', width, height: 1, backgroundColor: 'rgba(255,107,53,0.05)', top: '50%' },
+
+  /* ── Başlık ── */
+  headlineArea: { marginBottom: 28 },
+  backRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  backText: { color: 'rgba(255,255,255,0.38)', fontSize: 14, fontWeight: '500' },
+  headline: { fontSize: 44, fontWeight: '800', color: '#fff', letterSpacing: -1.5, lineHeight: 52 },
+  sub:      { fontSize: 15, color: 'rgba(255,255,255,0.42)', marginTop: 8, lineHeight: 22 },
+
+  /* ── Kart ── */
+  card: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 24, padding: 20,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+    gap: 16, marginBottom: 24,
   },
-  roleCardActive: { borderColor: Colors.primary, backgroundColor: '#1F0D00' },
-  roleEmoji: { fontSize: 24 },
-  roleLabel: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  roleDesc: { fontSize: 10, color: Colors.textMuted, textAlign: 'center' },
-  inputGroup: { gap: 8 },
-  label: { fontSize: 13, color: Colors.textMuted, fontWeight: '600', letterSpacing: 0.5 },
-  input: {
-    backgroundColor: Colors.surface, borderRadius: 12, padding: 16,
-    color: Colors.text, fontSize: 16, borderWidth: 1, borderColor: Colors.border,
+  errorBox: {
+    backgroundColor: 'rgba(255,68,68,0.10)',
+    borderRadius: 10, padding: 12,
+    borderWidth: 1, borderColor: 'rgba(255,68,68,0.20)',
   },
-  button: { backgroundColor: Colors.primary, borderRadius: 12, padding: 18, alignItems: 'center', marginTop: 4 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  error: { color: Colors.error, fontSize: 14, textAlign: 'center' },
-  link: { alignSelf: 'center' },
-  linkText: { color: Colors.textMuted, fontSize: 15 },
+  errorText: { color: '#FF6666', fontSize: 13, fontWeight: '500' },
+
+  /* ── Alanlar ── */
+  fieldGroup: { gap: 8 },
+  fieldLabel: { fontSize: 10, fontWeight: '700', color: 'rgba(255,255,255,0.30)', letterSpacing: 1.5 },
+  inputWrap: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  inputFocused: { borderColor: 'rgba(255,107,53,0.40)', backgroundColor: 'rgba(255,107,53,0.05)' },
+  accent:       { width: 3, alignSelf: 'stretch', backgroundColor: ORANGE },
+  input:        { color: '#fff', fontSize: 16, paddingHorizontal: 16, paddingVertical: 16 },
+  eyeBtn:       { paddingHorizontal: 16 },
+
+  /* ── Buton ── */
+  submitBtn: {
+    borderRadius: 14, paddingVertical: 18,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  submitBtnText: { color: '#fff', fontSize: 17, fontWeight: '700', letterSpacing: 0.3 },
+
+  /* ── Giriş yap ── */
+  loginRow:  { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  loginText: { color: 'rgba(255,255,255,0.38)', fontSize: 15 },
+  loginLink: { color: ORANGE, fontSize: 15, fontWeight: '700' },
+
+  footer: { color: 'rgba(255,255,255,0.16)', fontSize: 11, textAlign: 'center', lineHeight: 17 },
 });
